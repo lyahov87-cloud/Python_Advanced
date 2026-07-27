@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 import uuid
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -21,10 +23,24 @@ from .dependencies import get_current_user
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception:
-        pass
+    """Управление жизненным циклом приложения и безопасная инициализация БД с retry."""
+    max_retries = 5
+    retry_delay = 2
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("INFO: Таблицы базы данных успешно проверены/созданы.", file=sys.stdout)
+            break
+        except Exception as e:
+            print(
+                f"WARNING: Попытка подключения к БД ({attempt}/{max_retries}) не удалась: {e}",
+                file=sys.stderr
+            )
+            if attempt == max_retries:
+                print("CRITICAL: Не удалось подключиться к БД после всех попыток!", file=sys.stderr)
+            else:
+                time.sleep(retry_delay)
     yield
 
 
@@ -91,12 +107,15 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 
 @app.post("/api/medias", response_model=MediaResponse, status_code=201)
 def upload_media(
-    file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+        file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> MediaResponse:
-    file_ext = os.path.splitext(file.filename or ".jpg")
+    # Исправление: берем только расширение файла (второй элемент кортежа)
+    _, file_ext = os.path.splitext(file.filename or ".jpg")
     unique_filename = f"{uuid.uuid4()}{file_ext}"
+
     with open(os.path.join(MEDIA_DIR, unique_filename), "wb") as buffer:
         buffer.write(file.file.read())
+
     db_media = Media(file_path=f"/media/{unique_filename}")
     db.add(db_media)
     db.commit()

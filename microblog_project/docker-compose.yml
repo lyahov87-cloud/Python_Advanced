@@ -13,6 +13,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+    # Исправление: Docker будет проверять, готов ли Postgres отвечать на запросы
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U microuser -d microblog"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./backend
@@ -22,8 +28,10 @@ services:
       - DATABASE_URL=postgresql+psycopg2://microuser:micropassword@db:5432/microblog
     ports:
       - "8000:8000"
+    # Исправление: бэкенд запустится СТРОГО после того, как healthcheck базы станет "healthy"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - media_uploads:/app/media
@@ -42,3 +50,4 @@ services:
 volumes:
   postgres_data:
   media_uploads:
+
