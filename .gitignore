@@ -1,5 +1,22 @@
-/.idea/
+# Виртуальное окружение
 .venv/
+venv/
+ENV/
+
+# Локальная база данных SQLite
+test.db
+
+# Файлы тестирования и покрытия
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Кэш Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Настройки среды разработки (PyCharm)
+.idea/
 
